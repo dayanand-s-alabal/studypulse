@@ -7,58 +7,59 @@ import com.studypulse.entity.User;
 import com.studypulse.mapper.StudySprintMapper;
 import com.studypulse.repository.StudySprintRepository;
 import com.studypulse.repository.UserRepository;
+import com.studypulse.security.AuthenticatedUserService;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 public class StudySprintService {
-
+        private final AuthenticatedUserService authenticatedUserService;
     private final StudySprintRepository studySprintRepository;
     private final UserRepository userRepository;
 
     public StudySprintService(
+                        AuthenticatedUserService authenticatedUserService,
             StudySprintRepository studySprintRepository,
             UserRepository userRepository
     ) {
+                this.authenticatedUserService = authenticatedUserService;
         this.studySprintRepository = studySprintRepository;
         this.userRepository = userRepository;
     }
 
-    public StudySprintResponse createSprint(
-            Long userId,
-            StudySprintRequest request
-    ) {
+public StudySprintResponse createSprint(
+        StudySprintRequest request
+) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "User not found with id: " + userId
-                        )
-                );
-
-        validateTime(
-                request.getStartTime(),
-                request.getEndTime()
+    if (!request.getEndTime().isAfter(request.getStartTime())) {
+        throw new BadRequestException(
+                "End time must be after start time"
         );
-
-        StudySprint sprint = StudySprint.builder()
-                .user(user)
-                .subject(request.getSubject().trim())
-                .dayOfWeek(request.getDayOfWeek())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .isActive(
-                        request.getIsActive() == null
-                                || request.getIsActive()
-                )
-                .build();
-
-        StudySprint savedSprint =
-                studySprintRepository.save(sprint);
-
-        return StudySprintMapper.toResponse(savedSprint);
     }
+
+    User user =
+            authenticatedUserService.getCurrentUser();
+
+    StudySprint sprint = StudySprint.builder()
+            .user(user)
+            .subject(request.getSubject().trim())
+            .dayOfWeek(request.getDayOfWeek())
+            .startTime(request.getStartTime())
+            .endTime(request.getEndTime())
+            .isActive(
+                    request.getIsActive() == null
+                            ? true
+                            : request.getIsActive()
+            )
+            .build();
+
+    StudySprint saved =
+            studySprintRepository.save(sprint);
+
+    return StudySprintMapper.toResponse(saved);
+}
 
     public List<StudySprintResponse> getAllSprints() {
 
